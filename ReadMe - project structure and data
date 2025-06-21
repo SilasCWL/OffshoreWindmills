@@ -5,7 +5,11 @@ Next, get the data, uploaded on sciencedata.dk from this link:
 https://sciencedata.dk/shared/cd5f9fac0ddbea3e83ede8bcb55d916e 
 Download it, then unzip and place the data folder into the R project folder: Windmill_Depth_CDSSpatial.
 The structure should look like this: documents/cds-spatial-finalproject/Windmill_Depth_CDSSpatial/data/[DK_Dybdemodel_2004 and all other contents of data folder] 
-Now you're good to go.
+Now you're good to go. 
+
+Aside from a small test, the analysis is contained in one script: "WindmillDepth.rmd".
+Running the script: Open the R project (Windmill_Depth_DCSSpatial), and run the entire windmill depth script. 
+With all plots now generated, we can move on to the report, "Where to put the Windmills?", which contains deeper analysis and discussion of our results.
 
 Metadata:
 

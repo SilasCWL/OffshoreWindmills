@@ -6,3 +6,27 @@ Fetch the data, uploaded on sciencedata.dk from this link: https://sciencedata.d
 Download it and place it into the R project, in the folder Windmill_Depth_CDSSpatial and unzip it. 
 The structure should look like this: documents/cds-spatial-finalproject/Windmill_Depth_CDSSpatial/data
 Now you're good to go.
+
+Metadata:
+
+DK_Dybdemodel_2024 - https://dataforsyningen.dk/data/4817
+https://dataforsyningen.dk/terms
+(accessed: April 2025)
+
+np3_2022_N2000plan3_endelig_shp - https://mst.dk/erhverv/tilskud-miljoeviden-og-data/data-og-databaser/miljoegis-data-om-natur-og-miljoe-paa-webkort/hent-data-udstillet-paa-miljoegis
+(accessed: April 2025)
+
+ens_vindkraftanlaeg.gpkg - https://dataforsyningen.dk/data/3814
+https://dataforsyningen.dk/terms
+(accessed: April 2025)
+
+shipping_routes_3034.shp - based on: https://geodatastyrelsen.maps.arcgis.com/apps/mapviewer/index.html?webmap=e5495e2f2f674b528c5e74feb3635410 
+(accesed: May 2025)
+
+DNK_power-density_100m.tif - https://globalwindatlas.info/en/area/Denmark
+https://globalwindatlas.info/en/about/TermsOfUse
+(accessed: May 2025)
+
+Power grid map - https://openinframap.org/#7.64/55.84/7.926
+https://www.openstreetmap.org/copyright
+(accessed: May 2025)

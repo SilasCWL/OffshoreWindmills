@@ -1,0 +1,544 @@
+---
+title: "WindmillDepth"
+author: "Silas Christian Wilhelm-Leth"
+date: "June 2025"
+output: html_document
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+---
+
+# OBJECTIVE
+
+In this script, I will be analyzing several data types related to offshore windmills, including: depth data (as bathymetry raster), point data of existing turbines, shapefile of protected natura 2000 areas, shapefile shipping lane data, and raster wind power data.
+
+# Lets get started
+
+Let's load our libraries. 
+
+```{r}
+library(terra)
+library(sf)
+library(dplyr)
+library(ggplot2)
+```
+
+I'll load the bathymetry raster and the windmill points
+```{r}
+depth_raster <- rast("data/DK_Dybdemodel_2024/ddm_50m.dybde.tiff")
+windmills <- st_read("data/ens_vindkraftanlaeg.gpkg")
+
+#And let's see in what layer the points are
+st_layers("data/ens_vindkraftanlaeg.gpkg")
+```
+
+# Cleanup
+
+I only want the layer with points, therefore I'll use st_read to create my "windmills" object again, with only what I need
+```{r}
+windmills <- st_read("data/ens_vindkraftanlaeg.gpkg", layer = "vindkraftanlaeg_historisk_indevaerende")
+```
+
+Next: Using st_transform, I'll make sure that the windmill points are in the same crs as the depth_raster
+```{r}
+windmills <- st_transform(windmills, crs(depth_raster))
+```
+
+
+Before moving on, I need to check the crs of my data. I can see that my transform worked and they are the same.
+
+```{r}
+crs(depth_raster) # It's in 3034, as is seen in the bottom right
+st_crs(windmills) # It's at the very bottom, also 3034
+
+```
+Let's test that everything works with the windmills...
+
+```{r}
+nrow(windmills)
+head(windmills)
+plot(st_geometry(windmills))
+
+```
+That the bounding boxes fit...
+
+```{r}
+ext(depth_raster)  
+st_bbox(windmills)
+
+```
+
+And for good measure, a visual sanity check, confirming that the bathymetry raster and the points work with each other
+
+```{r}
+plot(depth_raster, main = "Bathymetry with windmills")
+plot(st_geometry(windmills), add = TRUE, col = "red", pch = 16)
+
+```
+
+# Final part of cleanup
+
+As I am working with offshore windmills only, we need to remove all the onshore ones. In other words, removing the points which fall outside the bathymetry raster. I attempted to do this with a polygon mask and intersect, but I did not have a polygon, and creating one proved difficult to do, without also losing important data. Instead, I will simply remove all windmills which are placed at NA points on the bathymetry raster. (meaning they are on land)
+This less direct method is not as generally applicable - only made possible by the specific nature of this data. It also won't allow for easy reuse and further comparisons, to the same extent as a polygon/mask would have.
+
+First, we get the depth values via terra extract.
+
+```{r}
+depth_values <- terra::extract(depth_raster, vect(windmills))
+summary(depth_values[, 2])
+
+```
+
+This shows me, that the depth values are measured as positive numbers. This won't do any difference for the analysis - just something to note.
+
+```{r}
+sum(!is.na(depth_values[, 2]))
+sum(depth_values[, 2] < 0, na.rm = TRUE)
+
+```
+Filtering out the onshore windmills:
+
+```{r}
+windmills$depth <- depth_values[, 2]
+
+plot(depth_raster, main = "Windmills - offshore only")
+plot(st_geometry(windmills), col = ifelse(is.na(windmills$depth), "gray", 
+                                          ifelse(windmills$depth >= 0, "red", "gray")),
+     pch = 16, add = TRUE)
+
+legend("bottomleft", legend = c("Offshore", "Onshore (no raster data)"),
+       col = c("red", "gray"), pch = 16, bty = "n")
+
+```
+
+Cleaning up the onshore windmills.
+
+```{r}
+# Step 1: Extract bathymetry values at windmill locations
+depth_values <- terra::extract(depth_raster, vect(windmills))
+
+# Step 2: Add extracted values as a new column
+windmills$depth <- depth_values[, 2]
+
+# Step 3: Keep only windmills placed over water (i.e., in raster coverage)
+# Optional: you can include '& depth > 0' if needed
+offshore_windmills <- windmills[!is.na(windmills$depth), ]
+
+```
+
+The clean result:
+
+```{r}
+plot(depth_raster, main = "Offshore windmills on bathymetry")
+plot(st_geometry(offshore_windmills), add = TRUE, col = "red", pch = 16)
+
+```
+
+#1# Analysis Part 1 - Depth
+
+Let's start by calculating the mean depth at which windmills are placed. We've separated our offshore windmills into the "offshore_windmills" dataset, which includes a "depth" column. 
+
+```{r}
+mean_depth <- mean(offshore_windmills$depth, na.rm = TRUE)
+
+# I'll print the resulting value
+cat("Average offshore wind turbine depth:", round(mean_depth, 2), "meters\n")
+
+```
+
+```{r}
+# Basic summary
+summary(offshore_windmills$depth)
+
+# Min and max
+min_depth <- min(offshore_windmills$depth, na.rm = TRUE)
+max_depth <- max(offshore_windmills$depth, na.rm = TRUE)
+
+cat("Depth range:", round(min_depth, 2), "to", round(max_depth, 2), "meters\n")
+
+
+```
+
+```{r}
+hist(offshore_windmills$depth,
+     breaks = 30,
+     col = "seagreen",
+     main = "Foundation depths of offshore windmills",
+     xlab = "Depth (meters below surface)")
+
+```
+
+```{r}
+ggplot(offshore_windmills) +
+  geom_sf(aes(color = depth)) +
+  scale_color_viridis_c() +
+  theme_minimal() +
+  labs(title = "Offshore Wind Turbines by Depth",
+       color = "Depth (m)")
+
+```
+
+
+```{r}
+# Creating a binary raster: 1 if within depth range, NA otherwise
+possible_depth <- classify(depth_raster, matrix(c(-Inf, 5, NA, 
+                                                   5, 30, 5, 
+                                                  30, Inf, NA), 
+                                                 ncol = 3, byrow = TRUE))
+
+# plotting this raster
+# Starting with the base info and depth raster in the background
+plot(depth_raster, col = gray.colors(100), main = "Possible depths (5–31 meters)")
+
+# Adding the possible areas in color on top
+plot(possible_depth, col = "seagreen3", add = TRUE, legend = FALSE)
+
+```
+
+#Protected Areas
+
+
+```{r}
+NaturaAreas <- st_read("data/np3_2022_N2000plan3_endelig_shp/np3_2022_natura_2000_omraader.shp")
+```
+I'll plot it next:
+
+```{r}
+plot(NaturaAreas, max.plot = 10)
+```
+
+There's clearly a lot of attributes. I'm just interested in the area. Let's map this by itself. 
+Note: The attribute is seemingly colored according to size of contiguous or themed areas. We can just ignore this. 
+
+```{r}
+plot(NaturaAreas["Shape_Area"], main = "Natura 2000 areas")
+
+```
+
+Before the data can work together, we need to check and align the crs as before:
+
+```{r}
+crs(depth_raster)
+st_crs(NaturaAreas)
+```
+And as earlier, we can reproject the Natura Areas crs into 3034 (from 25832), in order to match our raster
+
+```{r}
+NaturaAreas <- st_transform(NaturaAreas, crs = crs(depth_raster))
+```
+
+Checking that it worked:
+```{r}
+st_crs(NaturaAreas)
+```
+
+```{r}
+NaturaAreas_vect <- vect(NaturaAreas)
+```
+
+
+```{r}
+possible_no_natura <- mask(possible_depth, NaturaAreas_vect, inverse = TRUE)
+```
+
+```{r}
+plot(depth_raster, col = gray.colors(100), main = "5-30 meter depths (excluding Natura 2000 zones)")
+
+plot(possible_no_natura, col = "seagreen3", add = TRUE)
+```
+
+# Depth zones by cost
+
+Let's make this more detailed and nuanced. I'll split depths into four zones, outlined in a 2009 report by the European Environmental Agency. 
+
+```{r}
+# Define depth classes: [min, max, value]
+depth_classes <- matrix(c(
+  -Inf, 10, NA,       # Ignore shallow water
+   10, 20, 1,
+   20, 30, 2,
+   30, 40, 3,
+   40, 50, 4,
+   50, Inf, NA        # Ignore too deep
+), ncol = 3, byrow = TRUE)
+
+# Apply classification
+depth_zones <- classify(depth_raster, rcl = depth_classes)
+```
+
+```{r}
+# Reuse your projected Natura 2000 vect
+depth_zones_clean <- mask(depth_zones, NaturaAreas_vect, inverse = TRUE)
+
+```
+
+```{r}
+# Define colors and labels
+zone_colors <- c("skyblue1", "deepskyblue3", "slateblue3", "darkslateblue")
+zone_labels <- c("10–20m", "20–30m", "30–40m", "40–50m")
+
+# Plot it
+plot(depth_zones_clean,
+     col = zone_colors,
+     legend = FALSE,
+     main = "Depth-Based Offshore Zones (Excluding Natura 2000)")
+
+# Add legend manually
+legend("bottomleft", legend = zone_labels, fill = zone_colors, title = "Depth Zones", bty = "n")
+
+```
+Version overlaid onto the bathymetry:
+
+```{r}
+plot(depth_raster, col = gray.colors(100))
+
+plot(depth_zones_clean,
+     col = zone_colors,
+     legend = FALSE,
+     add = TRUE,
+     main = "Depth-Based Offshore Zones (Excluding Natura 2000)")
+
+legend("right", legend = zone_labels, fill = zone_colors, title = "Depth Zones", bty = "n")
+```
+
+# Wake effect exclusion zones - buffers around existing turbines
+
+```{r}
+offshore_windmills_proj <- st_transform(windmills, crs = 3034)
+
+# Buffer each turbine by 5.5 km
+wake_buffers <- st_buffer(offshore_windmills_proj, dist = 5500)  # meters
+
+# Merge overlapping buffers into one shape
+wake_area <- st_union(wake_buffers)
+
+```
+
+```{r}
+# Convert to terra format
+wake_vect <- vect(wake_area)
+
+# Mask these zones out
+depth_zones_final <- mask(depth_zones_clean, wake_vect, inverse = TRUE)
+
+```
+```{r}
+plot(depth_zones_final,
+     col = zone_colors,
+     legend = FALSE,
+     main = "Final Zones (Excludes Natura 2000 + Wake Buffers)")
+legend("bottomleft", legend = zone_labels, fill = zone_colors, title = "Depth Zones", bty = "n")
+
+```
+
+```{r}
+plot(depth_raster, col = gray.colors(100),
+     legend = FALSE)
+
+plot(depth_zones_final,
+     col = zone_colors,
+     legend = FALSE,
+     add = TRUE,
+     main = "Final Zones (Excludes Natura 2000 + Wake Buffers)")
+legend("topright", legend = zone_labels, fill = zone_colors, title = "Depth Zones", bty = "n")
+```
+
+# Shipping lanes
+
+
+```{r}
+# Load the lines
+shipping_routes <- st_read("data/shipping_routes_3034.shp")
+
+# Ensure it's in the correct CRS (should already be EPSG:3034)
+st_crs(shipping_routes)
+
+# Create buffer (e.g., 2.5 km each side of the route = 5 km total width)
+shipping_buffer <- st_buffer(shipping_routes, dist = 4600)
+
+# Convert to terra format if needed
+shipping_vect <- terra::vect(shipping_buffer)
+
+```
+
+
+
+```{r}
+# Remove these from the depth zones
+zones3 <- mask(depth_zones_final, shipping_vect, inverse = TRUE)
+
+# Plot
+plot(zones3,
+     col = zone_colors,
+     legend = FALSE,
+     main = "Zones excluding Natura 2000 + Wake + Shipping Routes")
+legend("bottomleft", legend = zone_labels, fill = zone_colors, title = "Depth Zones", bty = "n")
+
+```
+
+# Wind Power
+
+```{r}
+# Ensure both are loaded
+wind_power <- rast("data/DNK_power-density_100m.tif")        # wind power
+zones3      # your final suitability zones raster (already loaded)
+
+# Reproject wind power raster to match CRS, resolution, and extent of zones3
+wind_power_aligned <- project(wind_power, zones3, method = "bilinear")
+
+# Now mask it by the final suitable zones
+wind_suitability <- mask(wind_power_aligned, zones3)
+
+# Plot result
+plot(wind_suitability, main = "Wind Power Density in Suitable Zones")
+
+```
+# Final, cleaned plots
+
+```{r}
+par(mfrow = c(1, 2))  # side-by-side plots
+
+plot(wind_suitability,
+     col = hcl.colors(50, "YlOrRd", rev = TRUE),
+     main = "Wind Power Density")
+
+plot(zones3,
+     col = zone_colors,
+     legend = FALSE,
+     main = "Depth-Based Suitability")
+legend("bottomright", legend = zone_labels, fill = zone_colors, title = "Depth Zones", bty = "n")
+
+par(mfrow = c(1, 1))  # reset
+
+```
+
+
+```{r}
+# Create semi-transparent gray colors for the bathymetry
+gray_transparent <- adjustcolor(gray.colors(100), alpha.f = 0.3)
+
+# Plot with transparency in background
+par(mfrow = c(1, 2))
+
+# Wind Power
+plot(depth_raster, col = gray_transparent, legend = FALSE, main = "")
+plot(wind_suitability, col = hcl.colors(50, "YlOrRd", rev = TRUE),
+     legend = FALSE, add = TRUE, main = "Wind Power Density")
+
+# Depth Suitability
+plot(depth_raster, col = gray_transparent, legend = FALSE, main = "")
+plot(zones3, col = zone_colors, legend = FALSE, add = TRUE, main = "Depth-Based Suitability")
+legend("bottomright", legend = zone_labels, fill = zone_colors, title = "Depth Zones", bty = "n")
+
+par(mfrow = c(1, 1))  # reset
+
+```
+
+```{r}
+# Plot background bathymetry with transparency
+plot(depth_raster, col = gray_transparent, legend = FALSE,
+     main = "Wind Power Density", axes = FALSE)
+
+# Add wind power data
+plot(wind_suitability, col = hcl.colors(50, "YlOrRd", rev = TRUE),
+     add = TRUE, legend = FALSE)
+
+# Add legend manually
+legend_vals <- pretty(range(values(wind_suitability), na.rm = TRUE), 5)
+legend_colors <- hcl.colors(length(legend_vals) - 1, "YlOrRd", rev = TRUE)
+legend("right", legend = paste(legend_vals[-length(legend_vals)], "-", legend_vals[-1], "W/m²"),
+       fill = legend_colors, title = "Wind Power", bty = "n", cex = 0.8)
+
+```
+
+```{r}
+# Plot background again
+plot(depth_raster, col = gray_transparent, legend = FALSE,
+     main = "Depth Zones", axes = FALSE)
+
+# Add zones
+plot(zones3, col = zone_colors, legend = FALSE, add = TRUE)
+
+# Add legend clearly in-frame
+legend("right", legend = zone_labels, fill = zone_colors,
+       title = "Depth Zones", bty = "n", cex = 0.8)
+
+```
+
+# Exporting
+
+```{r}
+png("output/wind_power_map.png", width = 1600, height = 1200, res = 200)
+
+plot(depth_raster, col = gray_transparent, legend = FALSE,
+     main = "Wind Power Density", axes = FALSE)
+
+plot(wind_suitability, col = hcl.colors(50, "YlOrRd", rev = TRUE),
+     add = TRUE, legend = FALSE)
+
+legend_vals <- pretty(range(values(wind_suitability), na.rm = TRUE), 5)
+legend_colors <- hcl.colors(length(legend_vals) - 1, "YlOrRd", rev = TRUE)
+legend("right", legend = paste(legend_vals[-length(legend_vals)], "-", legend_vals[-1], "W/m²"),
+       fill = legend_colors, title = "Wind Power", bty = "n", cex = 0.8)
+
+dev.off()
+
+```
+```{r}
+png("output/depth_zones_map.png", width = 1600, height = 1200, res = 200)
+
+plot(depth_raster, col = gray_transparent, legend = FALSE,
+     main = "Depth Zones", axes = FALSE)
+
+plot(zones3, col = zone_colors, legend = FALSE, add = TRUE)
+
+legend("right", legend = zone_labels, fill = zone_colors,
+       title = "Depth Zones", bty = "n", cex = 0.8)
+
+dev.off()
+
+```
+
+# Halfway-result, for report
+
+```{r}
+plot(depth_raster, col = gray_transparent, legend = FALSE,
+     main = "Depth Zones, excluding Natura 2000", axes = FALSE)
+
+plot(depth_zones_clean,
+     col = zone_colors,
+     legend = FALSE,
+     add = TRUE,
+     main = "Depth-Based Offshore Zones (Excluding Natura 2000)")
+
+legend("topright", legend = zone_labels, fill = zone_colors, title = "Depth Zones", bty = "n")
+```
+
+
+```{r}
+png("output/depth_zones_excl_natura2000.png", width = 1600, height = 1200, res = 200)
+
+# Plot with transparent bathymetry as background
+plot(depth_raster, col = gray_transparent, legend = FALSE,
+     main = "Depth Zones, excluding Natura 2000", axes = FALSE)
+
+# Overlay the cleaned zones
+plot(depth_zones_clean,
+     col = zone_colors,
+     legend = FALSE,
+     add = TRUE)
+
+# Add legend
+legend("right", legend = zone_labels, fill = zone_colors,
+       title = "Depth Zones", bty = "n", cex = 0.8)
+
+# Close the image file
+dev.off()
+
+```
+
+

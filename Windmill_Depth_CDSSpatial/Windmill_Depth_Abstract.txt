@@ -1,0 +1,54 @@
+Name: Silas Christian Wilhelm-Leth
+I will be working on my own.
+
+Project subject: Ocean depth at which offshore wind turbines in Danish waters are constructed. 
+
+Project goals: Calculating average depth and, on the basis of this, mapping suitable areas for new windmills. 
+
+Possible obstacles: Reality is much more complicated than just depth. If there is time, it would be beneficial to factor in further aspects, such as shipping lanes / ferry routes, protected areas, and anything else which might help narrow down the mapping and focusing in on realistic possibilities. 
+
+Data sources: 
+
+Dataforsyningen:
+
+Danmarks dybdemodel 
+
+https://dataforsyningen.dk/data/4817#data
+(download GEOTIFF)
+
+Vindkraftanlæg
+
+https://dataforsyningen.dk/data/3814
+(download GPKG)
+
+
+This projects subject is placement and construction depth of offshore wind turbines in Danish waters. Analysis of the topic is made possible through state-provided bathymetry (depth) data, combined with simple point data of current windmill placements. Modern code-driven geographic data analysis methods allow us to filter out onshore turbines from the large dataset, and calculate the average depth of windmill placements, providing grounds to help identify and map new areas for future projects.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,6 +1,6 @@
 ReadMe - Offshore Windmill project, Github: https://github.com/SilasCWL/cds-spatial-finalproject.git
 
-To replicate my setup, you should fetch the repo and end up with a folder in your computer documents, called "cds-spatial-finalproject" .
+To replicate my setup, you should fetch the repo, ending up with a folder in your computer documents, called "cds-spatial-finalproject" .
 Next, get the data, uploaded on sciencedata.dk from this link:
 https://sciencedata.dk/shared/cd5f9fac0ddbea3e83ede8bcb55d916e 
 Download it, then unzip and place the data folder into the R project folder: Windmill_Depth_CDSSpatial.

@@ -3,7 +3,7 @@ ReadMe - Offshore Windmill project, Github: https://github.com/SilasCWL/Offshore
 To replicate my setup, create a folder called "cds-spatial-finalproject" in documents on your computer. 
 Next, download and place the contents of this repo into the folder.
 Fetch the data, uploaded on sciencedata.dk from this link: https://sciencedata.dk/shared/cd5f9fac0ddbea3e83ede8bcb55d916e 
-Download it and place it into the R project, in the folder Windmill_Depth_CDSSpatial and unzip it. 
+Download it, unzip it and place the "data" folder into the R projects folder: Windmill_Depth_CDSSpatial. 
 The structure should look similar to this: documents/cds-spatial-finalproject/Windmill_Depth_CDSSpatial/data/[DK_Dybdemodel_2004 and all other contents of data folder] 
 Now you're good to go.
 
